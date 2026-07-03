@@ -253,20 +253,24 @@ listenWithFallback(BASE_PORT, 10);
 // ---- スケジューラー ----
 import { main as morningBriefing } from "./scripts/morning-briefing.mjs";
 import { main as fxSignal } from "./scripts/fx-signal.mjs";
+import { main as fxRecord } from "./scripts/fx-record.mjs";
+import { main as fxReport } from "./scripts/fx-report.mjs";
+
 async function runMorningBriefing() {
-  try {
-    await morningBriefing();
-  } catch (e) {
-    console.error("モーニングブリーフィングエラー:", e.message);
-  }
+  try { await morningBriefing(); }
+  catch (e) { console.error("モーニングブリーフィングエラー:", e.message); }
 }
 
-// 毎分チェック（モーニングブリーフィング＋FXシグナル）
+// 毎分チェック（モーニングブリーフィング＋FXシグナル＋トレード記録＋週報月報）
 let lastSignalMin = -1; // 同じ15分枠で重複実行しない
+let lastRecordHour = -1; // 1時間ごとのトレード記録
+let lastReportDay = -1;  // 週報・月報（日曜22:00に実行）
+
 setInterval(() => {
   const now = new Date();
   const jstHour = (now.getUTCHours() + 9) % 24;
   const jstMin = now.getUTCMinutes();
+  const jstDay = now.getUTCDay(); // 0=日曜
 
   // 朝3:30 モーニングブリーフィング
   if (jstHour === 3 && jstMin === 30) {
@@ -279,5 +283,19 @@ setInterval(() => {
     lastSignalMin = jstMin;
     console.log(`📈 FXシグナルチェック開始 (JST ${jstHour}:${String(jstMin).padStart(2,"0")})`);
     fxSignal().catch((e) => console.error("FXシグナルエラー:", e.message));
+  }
+
+  // 1時間ごとにトレード記録を同期
+  if (jstMin === 0 && jstHour !== lastRecordHour) {
+    lastRecordHour = jstHour;
+    console.log(`📝 トレード記録同期 (JST ${jstHour}:00)`);
+    fxRecord().catch((e) => console.error("トレード記録エラー:", e.message));
+  }
+
+  // 日曜22:00に週報・月報を自動生成
+  if (jstDay === 0 && jstHour === 22 && jstMin === 0 && lastReportDay !== now.getUTCDate()) {
+    lastReportDay = now.getUTCDate();
+    console.log("📊 週報・月報 自動生成");
+    fxReport().catch((e) => console.error("週報・月報エラー:", e.message));
   }
 }, 60 * 1000);

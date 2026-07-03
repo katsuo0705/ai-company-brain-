@@ -7,6 +7,7 @@
 import * as dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "../.env") });
@@ -138,6 +139,28 @@ function detectSignal(candles15M, trend1H, trend4H, pip) {
   return null;
 }
 
+// ── シグナルキャッシュに保存（精度の自動入力用） ──────
+const CACHE_PATH = join(__dirname, "../../logs/signal-cache.json");
+
+function saveSignalCache(pair, signal, axisCount) {
+  let cache = [];
+  if (existsSync(CACHE_PATH)) {
+    try { cache = JSON.parse(readFileSync(CACHE_PATH, "utf-8")); } catch {}
+  }
+  // 7日以上前のキャッシュを削除
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  cache = cache.filter(c => new Date(c.time).getTime() > cutoff);
+
+  cache.push({
+    pair: pair.replace("/", ""),  // "USD/JPY" → "USDJPY"
+    time: new Date().toISOString(),
+    axes: axisCount,
+    direction: signal.direction,
+  });
+  writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
+  console.log(`[シグナルキャッシュ保存] ${pair} ${axisCount}軸`);
+}
+
 // ── LINE通知メッセージ生成 ────────────────────────────
 function buildMessage(pair, sig) {
   const isLong = sig.direction === "ロング";
@@ -212,6 +235,12 @@ export async function main(targetPair) {
 
       const msg = buildMessage(pair, signal);
       await sendLine(msg);
+
+      // 精度の自動入力用にシグナルをキャッシュ保存
+      const isLong = signal.direction === "ロング";
+      const trendMatch = (t) => (isLong && t === "上昇") || (!isLong && t === "下降");
+      const axisCount = [signal.trend4H, signal.trend1H].filter(trendMatch).length + 1;
+      saveSignalCache(pair, signal, axisCount);
     } catch (e) {
       console.error(`[${pair}] エラー:`, e.message);
     }

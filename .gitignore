@@ -3,3 +3,5 @@ node_modules/
 *.log
 .port
 .state-backup.js
+credentials.json
+tokens.json
