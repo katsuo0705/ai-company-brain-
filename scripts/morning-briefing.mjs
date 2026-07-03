@@ -71,7 +71,7 @@ async function getFxNews() {
   try {
     const res = await fetch(
       `https://newsapi.org/v2/everything?` +
-        `q=USD+JPY+EUR+forex+FX+金利+為替&` +
+        `q=USD+JPY+EUR+GBP+forex+FX+金利+為替+ポンド&` +
         `language=jp&` +
         `sortBy=publishedAt&` +
         `pageSize=5&` +
@@ -91,7 +91,7 @@ async function getFxNewsEn() {
   try {
     const res = await fetch(
       `https://newsapi.org/v2/everything?` +
-        `q=USD+JPY+EUR+forex+interest+rate&` +
+        `q=USD+JPY+EUR+GBP+forex+interest+rate&` +
         `language=en&` +
         `sortBy=publishedAt&` +
         `pageSize=5&` +
