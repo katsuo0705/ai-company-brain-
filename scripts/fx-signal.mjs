@@ -15,8 +15,9 @@ const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const OWNER_ID = process.env.LINE_OWNER_USER_ID;
 const TD_KEY = process.env.TWELVE_DATA_API_KEY;
 
-// 監視する通貨ペア（無料枠8req/分のため最大2ペア推奨。増やす場合はTwelve Data有料プランへ）
-const PAIRS = ["USD/JPY", "EUR/JPY"];
+// 監視ペアのローテーション（15分ごとに1ペアずつ → 30分で全ペアを1周）
+// :00→USD/JPY :15→EUR/JPY :30→GBP/JPY :45→USD/JPY ...
+const PAIR_ROTATION = ["USD/JPY", "EUR/JPY", "GBP/JPY"];
 
 // pip単位（JPYクロスは0.01、その他は0.0001）
 function pipSize(pair) {
@@ -168,14 +169,21 @@ RR比：1:${sig.rr.toFixed(1)} ${rrOk}
 精度：${precision}`;
 }
 
-// ── メイン ────────────────────────────────────────────
-export async function main() {
+// ── メイン（pair省略時は現在時刻でローテーション自動選択） ──
+export async function main(targetPair) {
   if (!TD_KEY) {
     console.log("TWELVE_DATA_API_KEY が未設定です（.env に追加してください）");
     return;
   }
 
-  for (const pair of PAIRS) {
+  // 引数がなければ現在のJST分から自動選択
+  if (!targetPair) {
+    const jstMin = new Date().getUTCMinutes();
+    const slot = Math.floor(jstMin / 15) % PAIR_ROTATION.length;
+    targetPair = PAIR_ROTATION[slot];
+  }
+
+  for (const pair of [targetPair]) {
     try {
       // 3つの時間軸を取得（無料枠8req/分を超えないよう1秒間隔）
       const candles15M = await fetchCandles(pair, "15min", 40);
