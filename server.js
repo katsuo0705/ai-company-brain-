@@ -38,6 +38,7 @@ app.post("/webhook", express.raw({ type: "*/*" }), async (req, res) => {
       if (ev.type !== "message" || ev.message?.type !== "text") continue;
       const userId = ev.source?.userId;
       const text = ev.message.text;
+      console.log(`[LINE] userId: ${userId} | message: ${text}`);
       pushRecent("them", text);
       if (!isOwner(userId)) {
         await replyText(ev.replyToken, "（このAI会社は社長専用です）userId: " + (userId || "不明"));
