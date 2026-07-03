@@ -135,7 +135,11 @@ export async function main() {
   } else {
     for (const e of events) {
       const time = e.date ? new Date(e.date).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" }) : "--:--";
+      const forecast = e.forecast ? `予測:${e.forecast}` : "";
+      const previous = e.previous ? `前回:${e.previous}` : "";
+      const values = [forecast, previous].filter(Boolean).join(" / ");
       msg += `${impactEmoji(e.impact)} ${time} ${e.country} ${e.title}\n`;
+      if (values) msg += `　　${values}\n`;
     }
   }
 
