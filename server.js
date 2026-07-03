@@ -255,6 +255,7 @@ import { main as morningBriefing } from "./scripts/morning-briefing.mjs";
 import { main as fxSignal } from "./scripts/fx-signal.mjs";
 import { main as fxRecord } from "./scripts/fx-record.mjs";
 import { main as fxReport } from "./scripts/fx-report.mjs";
+import { main as fxDailySummary } from "./scripts/fx-daily-summary.mjs";
 
 async function runMorningBriefing() {
   try { await morningBriefing(); }
@@ -297,5 +298,11 @@ setInterval(() => {
     lastReportDay = now.getUTCDate();
     console.log("📊 週報・月報 自動生成");
     fxReport().catch((e) => console.error("週報・月報エラー:", e.message));
+  }
+
+  // 毎日21:00に日次サマリーをLINEに送信
+  if (jstHour === 21 && jstMin === 0) {
+    console.log("📅 日次サマリー送信");
+    fxDailySummary().catch((e) => console.error("日次サマリーエラー:", e.message));
   }
 }, 60 * 1000);
