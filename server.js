@@ -250,8 +250,9 @@ function listenWithFallback(port, remaining) {
 }
 listenWithFallback(BASE_PORT, 10);
 
-// ---- 朝3:30 モーニングブリーフィング（JST） ----
+// ---- スケジューラー ----
 import { main as morningBriefing } from "./scripts/morning-briefing.mjs";
+import { main as fxSignal } from "./scripts/fx-signal.mjs";
 async function runMorningBriefing() {
   try {
     await morningBriefing();
@@ -260,13 +261,23 @@ async function runMorningBriefing() {
   }
 }
 
-// 毎分チェックして3:30(JST=UTC+9→18:30UTC)に実行
+// 毎分チェック（モーニングブリーフィング＋FXシグナル）
+let lastSignalMin = -1; // 同じ15分枠で重複実行しない
 setInterval(() => {
   const now = new Date();
   const jstHour = (now.getUTCHours() + 9) % 24;
   const jstMin = now.getUTCMinutes();
+
+  // 朝3:30 モーニングブリーフィング
   if (jstHour === 3 && jstMin === 30) {
     console.log("📊 モーニングブリーフィング開始");
     runMorningBriefing();
+  }
+
+  // 15分ごと（00/15/30/45分）にFXシグナルチェック
+  if (jstMin % 15 === 0 && jstMin !== lastSignalMin) {
+    lastSignalMin = jstMin;
+    console.log(`📈 FXシグナルチェック開始 (JST ${jstHour}:${String(jstMin).padStart(2,"0")})`);
+    fxSignal().catch((e) => console.error("FXシグナルエラー:", e.message));
   }
 }, 60 * 1000);
