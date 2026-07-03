@@ -212,6 +212,42 @@ function formatTrade(t) {
   };
 }
 
+// ── 連敗アラート ──────────────────────────────────────
+async function checkLosingStreak(trades) {
+  // 直近トレードを決済時刻の新しい順に並べる
+  const sorted = [...trades]
+    .filter(t => t.closeTime)
+    .sort((a, b) => new Date(toJSTDate(b.closeTime)) - new Date(toJSTDate(a.closeTime)));
+
+  if (sorted.length === 0) return;
+
+  // 連続負けを数える
+  let streak = 0;
+  for (const t of sorted) {
+    if (parseFloat(t.pips || 0) < 0) {
+      streak++;
+    } else {
+      break; // 勝ちが出たら終了
+    }
+  }
+
+  console.log(`連敗チェック: 現在${streak}連敗`);
+
+  if (streak >= 3) {
+    const msgs = {
+      3: `⚠️ 3連敗アラート\n\n直近3トレードが連続負けです。\n\n今日はいったんトレードを停止して、\nルール通りにエントリーできていたか振り返ることをおすすめします。\n\n📊 シートで確認：\nhttps://docs.google.com/spreadsheets/d/${SHEET_ID}`,
+      5: `🚨 5連敗アラート\n\n直近5トレードが連続負けです。\n\n今日のトレードを全て停止してください。\nエントリー条件・ルールの根本的な見直しが必要かもしれません。\n\n📊 シートで確認：\nhttps://docs.google.com/spreadsheets/d/${SHEET_ID}`,
+    };
+
+    if (streak === 3 || streak === 5) {
+      await sendLine(msgs[streak]);
+    } else if (streak > 5 && streak % 2 === 1) {
+      // 7連敗以降は奇数のたびに通知（しつこくなりすぎないよう）
+      await sendLine(`🚨 ${streak}連敗アラート\n\n直近${streak}トレードが連続負けです。本日のトレードを停止してください。`);
+    }
+  }
+}
+
 // ── メイン ────────────────────────────────────────────
 export async function main() {
   if (!EMAIL || !PASSWORD || !ACCOUNT_ID || !SHEET_ID) {
@@ -258,6 +294,9 @@ export async function main() {
   }).join("\n");
 
   await sendLine(`📝 トレード記録を更新しました！（${total}件）\n\n${summary}${total > 5 ? "\n　他" + (total - 5) + "件" : ""}\n\n📊 シートで確認：\nhttps://docs.google.com/spreadsheets/d/${SHEET_ID}`);
+
+  // 連敗アラートチェック（全トレードで判定）
+  await checkLosingStreak(trades);
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
