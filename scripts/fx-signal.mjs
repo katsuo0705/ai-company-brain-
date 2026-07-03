@@ -16,13 +16,15 @@ const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const OWNER_ID = process.env.LINE_OWNER_USER_ID;
 const TD_KEY = process.env.TWELVE_DATA_API_KEY;
 
-// 監視ペアのローテーション（15分ごとに1ペアずつ → 30分で全ペアを1周）
-// :00→USD/JPY :15→EUR/JPY :30→GBP/JPY :45→USD/JPY ...
-const PAIR_ROTATION = ["USD/JPY", "EUR/JPY", "GBP/JPY"];
+// 監視ペアのローテーション（15分ごとに1ペアずつ → 45分で全ペアを1周）
+// :00→USD/JPY :15→EUR/USD :30→XAU/USD :45→USD/JPY ...
+const PAIR_ROTATION = ["USD/JPY", "EUR/USD", "XAU/USD"];
 
-// pip単位（JPYクロスは0.01、その他は0.0001）
+// pip単位（JPYクロスは0.01、ゴールドは0.1、その他は0.0001）
 function pipSize(pair) {
-  return pair.includes("JPY") ? 0.01 : 0.0001;
+  if (pair.includes("JPY")) return 0.01;
+  if (pair === "XAU/USD") return 0.1;
+  return 0.0001;
 }
 
 // ── LINE送信 ──────────────────────────────────────────
@@ -172,7 +174,9 @@ function buildMessage(pair, sig) {
   const dir = isLong ? "🟢" : "🔴";
   const rrOk = sig.rr >= 2 ? "✅" : "⚡";
 
-  const fmt = (n, d = 3) => n.toFixed(d);
+  // ゴールドは小数2桁、JPY系は3桁、その他は5桁
+  const decimals = pair === "XAU/USD" ? 2 : pair.includes("JPY") ? 3 : 5;
+  const fmt = (n, d = decimals) => n.toFixed(d);
 
   return `📊 エントリーシグナル検知！
 
