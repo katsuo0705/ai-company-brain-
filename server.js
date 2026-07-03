@@ -249,3 +249,24 @@ function listenWithFallback(port, remaining) {
   });
 }
 listenWithFallback(BASE_PORT, 10);
+
+// ---- 朝3:30 モーニングブリーフィング（JST） ----
+import { main as morningBriefing } from "./scripts/morning-briefing.mjs";
+async function runMorningBriefing() {
+  try {
+    await morningBriefing();
+  } catch (e) {
+    console.error("モーニングブリーフィングエラー:", e.message);
+  }
+}
+
+// 毎分チェックして3:30(JST=UTC+9→18:30UTC)に実行
+setInterval(() => {
+  const now = new Date();
+  const jstHour = (now.getUTCHours() + 9) % 24;
+  const jstMin = now.getUTCMinutes();
+  if (jstHour === 3 && jstMin === 30) {
+    console.log("📊 モーニングブリーフィング開始");
+    runMorningBriefing();
+  }
+}, 60 * 1000);
