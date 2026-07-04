@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
 import { readFileSync, existsSync } from "fs";
 import { google } from "googleapis";
+import { generateChart } from "./fx-chart.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "../.env") });
@@ -382,15 +383,41 @@ export async function main() {
     byMonth[monthTab].push(row);
   }
 
-  // 月タブに追記
+  // 月タブに追記（チャート生成はAPI制限のため1件ずつ）
   for (const [monthTab, rows] of Object.entries(byMonth)) {
     await ensureMonthSheet(sheets, monthTab);
+
+    // チャート画像を生成してURLをS列（チャート画像）に入れる
+    // ※ 過去の一括取込時にAPI制限（8req/分）を超えないよう、直近48時間以内の決済トレードのみ生成
+    const now = Date.now();
+    const CHART_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+    const rowsWithChart = [];
+    for (const row of rows) {
+      const trade = newTrades.find(t => tradeKey(t) === row[row.length - 1]);
+      let chartUrl = "";
+      if (trade) {
+        const [datePart, timePart] = (trade.closeTime || "").split(" ");
+        const [mm, dd, yyyy] = (datePart || "").split("/");
+        const closeUtc = new Date(`${yyyy}-${mm}-${dd}T${timePart}:00Z`).getTime();
+        const isRecent = !isNaN(closeUtc) && (now - closeUtc) < CHART_WINDOW_MS;
+        if (isRecent) {
+          await new Promise(r => setTimeout(r, 8000)); // 8秒待機（8req/分制限に収まるよう余裕をもたせる）
+          chartUrl = await generateChart(trade) || "";
+        }
+      }
+      // S列（index 18）がチャート画像
+      const rowCopy = [...row];
+      rowCopy[18] = chartUrl;
+      rowsWithChart.push(rowCopy);
+    }
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
       range: `${monthTab}!A:${ID_COLUMN}`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
-      requestBody: { values: rows },
+      requestBody: { values: rowsWithChart },
     });
     console.log(`✅ ${monthTab}：${rows.length}件追記`);
   }
