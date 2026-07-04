@@ -18,7 +18,7 @@ const SHEET_ID = process.env.TRADE_SHEET_ID;
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const OWNER_ID = process.env.LINE_OWNER_USER_ID;
 
-const HEADERS = ['日付','エントリー時間(JST)','決済時間(JST)','ペア','方向','ロット数','精度','エントリー価格','TP','LC','RR比','結果','損益(pips)','損益(円)','ルール通り','メモ','myfxbook_ID'];
+const HEADERS = ['日付','エントリー時間(JST)','決済時間(JST)','ペア','方向','ロット数','精度','エントリー価格','TP','LC','RR比','結果','損益(pips)','損益(円)','ルール通り','メモ','チャートURL(4H)','チャートURL(1H)','チャートURL(15M)','myfxbook_ID'];
 
 // ── Google Sheets クライアント ────────────────────────
 function getSheetsClient() {
@@ -106,7 +106,7 @@ async function ensureMonthSheet(sheets, monthTab) {
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${monthTab}!A1:Q1`,
+    range: `${monthTab}!A1:T1`,
     valueInputOption: "RAW",
     requestBody: { values: [HEADERS] }
   });
@@ -207,6 +207,7 @@ function formatTrade(t) {
       tp > 0 ? tp.toFixed(3) : "",
       lc > 0 ? lc.toFixed(3) : "",
       rr, result, pipsStr, profit.toFixed(0), ruleCompliance, "",
+      "", "", "",  // チャートURL(4H), チャートURL(1H), チャートURL(15M)
       String(t.id || ""),
     ]
   };
@@ -248,6 +249,88 @@ async function checkLosingStreak(trades) {
   }
 }
 
+// ── 凡例タブを作成（初回のみ） ────────────────────────
+async function ensureLegendSheet(sheets) {
+  const info = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+  if (info.data.sheets.find(s => s.properties.title === "凡例")) return;
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: { requests: [{ addSheet: { properties: { title: "凡例", index: 0 } } }] }
+  });
+
+  const legend = [
+    ["📋 FXトレード記録 － 凡例"],
+    [""],
+    ["【精度】シグナルの信頼度"],
+    ["🔥 3軸", "4H・1H・15M すべてのトレンドが一致（高精度）。最優先でエントリーを検討"],
+    ["⚠️ 2軸", "4H・1H または 1H・15M の2軸が一致（中精度）。慎重に判断"],
+    ["（空欄）", "シグナル外のエントリー。または手動エントリーのため自動判定なし"],
+    [""],
+    ["【ルール通り】トレードルール遵守度"],
+    ["○", "RR比 1.5以上。ルール通りにエントリー・決済できた"],
+    ["△", "RR比 1.0〜1.5。またはTP/LCが未設定。一部ルールを守れなかった"],
+    ["×", "RR比 1.0未満。ルール違反（利確が早すぎ、または損切りが遅すぎ）"],
+    [""],
+    ["【チャートURL】TradingViewのチャートリンク"],
+    ["チャートURL(4H)", "環境認識用（4時間足）。エントリー前のスクリーンショットリンクを貼る"],
+    ["チャートURL(1H)", "トレンド確認用（1時間足）"],
+    ["チャートURL(15M)", "エントリー根拠用（15分足）。ネックラインブレイクの確認"],
+    [""],
+    ["【振り返りのコツ】"],
+    ["・ルール通り×のトレードだけ抽出して勝率を比較する"],
+    ["・🔥3軸と⚠️2軸それぞれの勝率を週報で確認する"],
+    ["・チャートURLを見ながら月報の「振り返り」欄を埋める"],
+  ];
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: "凡例!A1",
+    valueInputOption: "RAW",
+    requestBody: { values: legend }
+  });
+
+  // タイトル行を太字・背景色
+  const newInfo = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+  const sid = newInfo.data.sheets.find(s => s.properties.title === "凡例")?.properties.sheetId;
+  if (sid !== undefined) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: { requests: [
+        { repeatCell: {
+            range: { sheetId: sid, startRowIndex: 0, endRowIndex: 1 },
+            cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 13 }, backgroundColor: { red: 0.2, green: 0.6, blue: 0.9 } } },
+            fields: "userEnteredFormat(textFormat,backgroundColor)"
+        }},
+        { repeatCell: {
+            range: { sheetId: sid, startRowIndex: 2, endRowIndex: 3 },
+            cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 1, green: 0.95, blue: 0.8 } } },
+            fields: "userEnteredFormat(textFormat,backgroundColor)"
+        }},
+        { repeatCell: {
+            range: { sheetId: sid, startRowIndex: 7, endRowIndex: 8 },
+            cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.85, green: 0.95, blue: 0.85 } } },
+            fields: "userEnteredFormat(textFormat,backgroundColor)"
+        }},
+        { repeatCell: {
+            range: { sheetId: sid, startRowIndex: 12, endRowIndex: 13 },
+            cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.9, green: 0.9, blue: 1 } } },
+            fields: "userEnteredFormat(textFormat,backgroundColor)"
+        }},
+        { updateDimensionProperties: {
+            range: { sheetId: sid, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
+            properties: { pixelSize: 160 }, fields: "pixelSize"
+        }},
+        { updateDimensionProperties: {
+            range: { sheetId: sid, dimension: "COLUMNS", startIndex: 1, endIndex: 2 },
+            properties: { pixelSize: 500 }, fields: "pixelSize"
+        }},
+      ]}
+    });
+  }
+  console.log("✅ 凡例タブ作成");
+}
+
 // ── メイン ────────────────────────────────────────────
 export async function main() {
   if (!EMAIL || !PASSWORD || !ACCOUNT_ID || !SHEET_ID) {
@@ -260,6 +343,7 @@ export async function main() {
   if (trades.length === 0) { console.log("トレードなし"); return; }
 
   const sheets = getSheetsClient();
+  await ensureLegendSheet(sheets);
   const existingIds = await getExistingIds(sheets);
 
   const newTrades = trades.slice(0, 100).filter(t => !existingIds.has(String(t.id)));
@@ -279,7 +363,7 @@ export async function main() {
     await ensureMonthSheet(sheets, monthTab);
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${monthTab}!A:Q`,
+      range: `${monthTab}!A:T`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: rows },
