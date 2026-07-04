@@ -19,8 +19,9 @@ const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const OWNER_ID = process.env.LINE_OWNER_USER_ID;
 
 const HEADERS = ['エントリー日時(JST)','決済日時(JST)','ペア','方向','ロット数','精度','エントリー価格','TP','LC','RR比','結果','損益(pips)','損益(円)','ルール通り','メモ','チャートURL(4H)','チャートURL(1H)','チャートURL(15M)','チャート画像','myfxbook_ID'];
-// myfxbook_IDは最終列（T列）
-const ID_COLUMN = "T";
+// myfxbook_IDは最終列（HEADERSの列数から自動計算）
+const ID_COL_INDEX = HEADERS.length - 1; // 0始まり
+const ID_COLUMN = String.fromCharCode(65 + ID_COL_INDEX); // A=65
 
 // ── Google Sheets クライアント ────────────────────────
 function getSheetsClient() {
@@ -150,9 +151,9 @@ async function getExistingIds(sheets) {
     try {
       const res = await sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range: `${title}!${ID_COLUMN}2:${ID_COLUMN}1000`,
+        range: `${title}!${ID_COLUMN}2:${ID_COLUMN}2000`,
       });
-      (res.data.values || []).flat().forEach(id => allIds.add(id));
+      (res.data.values || []).flat().filter(Boolean).forEach(id => allIds.add(id));
     } catch {}
   }
   return allIds;
@@ -177,6 +178,11 @@ function toJST(str) {
   const h = String(jst.getUTCHours()).padStart(2, "0");
   const min = String(jst.getUTCMinutes()).padStart(2, "0");
   return { date: `${y}/${mo}/${d}`, time: `${h}:${min}`, monthTab: `${y}/${mo}` };
+}
+
+// ── トレードのユニークキー（openTime+symbol+action+openPrice）────
+function tradeKey(t) {
+  return `${t.openTime}|${t.symbol}|${t.action}|${t.openPrice}`;
 }
 
 // ── トレードデータを整形 ──────────────────────────────
@@ -221,7 +227,7 @@ function formatTrade(t) {
       lc > 0 ? lc.toFixed(3) : "",
       rr, result, pipsStr, profit.toFixed(0), ruleCompliance, "",
       "", "", "", "",  // チャートURL(4H), チャートURL(1H), チャートURL(15M), チャート画像
-      String(t.id || ""),
+      tradeKey(t),
     ]
   };
 }
@@ -364,7 +370,7 @@ export async function main() {
   await ensureLegendSheet(sheets);
   const existingIds = await getExistingIds(sheets);
 
-  const newTrades = trades.slice(0, 100).filter(t => !existingIds.has(String(t.id)));
+  const newTrades = trades.filter(t => !existingIds.has(tradeKey(t)));
   if (newTrades.length === 0) { console.log("未記録のトレードはありません"); return; }
 
   // 月別にグループ化
