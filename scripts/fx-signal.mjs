@@ -163,8 +163,66 @@ function saveSignalCache(pair, signal, axisCount) {
   console.log(`[シグナルキャッシュ保存] ${pair} ${axisCount}軸`);
 }
 
+// ── myfxbook 口座残高取得 ─────────────────────────────
+async function fetchBalance() {
+  try {
+    const loginRes = await fetch(
+      `https://www.myfxbook.com/api/login.json?email=${encodeURIComponent(process.env.MYFXBOOK_EMAIL)}&password=${encodeURIComponent(process.env.MYFXBOOK_PASSWORD)}`
+    );
+    const loginData = await loginRes.json();
+    if (loginData.error) return null;
+    const session = loginData.session;
+
+    const accRes = await fetch(
+      `https://www.myfxbook.com/api/get-my-accounts.json?session=${session}`
+    );
+    const accData = await accRes.json();
+    if (accData.error) return null;
+
+    const account = (accData.accounts || []).find(
+      a => String(a.id) === String(process.env.MYFXBOOK_ACCOUNT_ID)
+    );
+    return account ? parseFloat(account.balance) : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── 推奨ロット計算（リスク2%） ────────────────────────
+// Lot = (残高 × 2%) ÷ (LC幅pips × pip価値/lot)
+// pip価値/lot: JPY系=1000円、USD系=10USD×USDJPY、XAU/USD=10USD×USDJPY
+async function calcLot(pair, lcPips) {
+  if (!lcPips || lcPips <= 0) return null;
+  const balance = await fetchBalance();
+  if (!balance) return null;
+
+  const riskAmount = balance * 0.02; // 2%リスク
+
+  let pipValuePerLot; // 円換算
+  if (pair.includes("JPY")) {
+    pipValuePerLot = 1000; // 1pip = 0.01円 × 100,000 = 1,000円/lot
+  } else {
+    // USD建て → 円換算にUSD/JPYレートが必要（簡易的に直近レートを取得）
+    try {
+      const res = await fetch(
+        `https://api.twelvedata.com/price?symbol=USD/JPY&apikey=${TD_KEY}`
+      );
+      const d = await res.json();
+      const usdjpy = parseFloat(d.price || 0);
+      pipValuePerLot = pair === "XAU/USD"
+        ? 10 * (usdjpy || 150)   // XAU/USD: $10/pip/lot
+        : 10 * (usdjpy || 150);  // EUR/USD等: $10/pip/lot
+    } catch {
+      pipValuePerLot = 10 * 150; // フォールバック
+    }
+  }
+
+  const lot = riskAmount / (lcPips * pipValuePerLot);
+  return Math.floor(lot * 100) / 100; // 0.01単位で切り捨て
+}
+
 // ── LINE通知メッセージ生成 ────────────────────────────
-function buildMessage(pair, sig) {
+function buildMessage(pair, sig, lotSize) {
   const isLong = sig.direction === "ロング";
   const trendMatch = (t) =>
     (isLong && t === "上昇") || (!isLong && t === "下降");
@@ -178,6 +236,11 @@ function buildMessage(pair, sig) {
   const decimals = pair === "XAU/USD" ? 2 : pair.includes("JPY") ? 3 : 5;
   const fmt = (n, d = decimals) => n.toFixed(d);
 
+  const lcPips = Math.abs(sig.entry - sig.lc) / pipSize(pair);
+  const lotLine = lotSize !== null
+    ? `\n💰 推奨ロット：${lotSize.toFixed(2)}lot（残高×2%リスク / LC${lcPips.toFixed(1)}pips）`
+    : "";
+
   return `📊 エントリーシグナル検知！
 
 通貨ペア：${pair}
@@ -186,7 +249,7 @@ function buildMessage(pair, sig) {
 TP：${fmt(sig.tp_e)}（E値）
 　　${fmt(sig.tp_n)}（N値）
 LC：${fmt(sig.lc)}
-RR比：1:${sig.rr.toFixed(1)} ${rrOk}
+RR比：1:${sig.rr.toFixed(1)} ${rrOk}${lotLine}
 
 【根拠】
 4H：${trendMatch(sig.trend4H) ? "✅" : "⚠️"} ${sig.trend4H}トレンド
@@ -237,7 +300,9 @@ export async function main(targetPair) {
         continue;
       }
 
-      const msg = buildMessage(pair, signal);
+      const lcPips = Math.abs(signal.entry - signal.lc) / pipSize(pair);
+      const lotSize = await calcLot(pair, lcPips);
+      const msg = buildMessage(pair, signal, lotSize);
       await sendLine(msg);
 
       // 精度の自動入力用にシグナルをキャッシュ保存
