@@ -221,24 +221,76 @@ async function calcLot(pair, lcPips) {
   return Math.floor(lot * 100) / 100; // 0.01単位で切り捨て
 }
 
+// ── ATR・RSI・前日高安（参考情報用） ─────────────────
+function calcATR(candles, period = 14) {
+  if (candles.length < period + 1) return null;
+  const trs = candles.slice(-period - 1).map((c, i, arr) => {
+    if (i === 0) return c.high - c.low;
+    const prev = arr[i - 1];
+    return Math.max(c.high - c.low, Math.abs(c.high - prev.close), Math.abs(c.low - prev.close));
+  }).slice(1);
+  return trs.reduce((s, v) => s + v, 0) / period;
+}
+
+function calcRSI(candles, period = 14) {
+  if (candles.length < period + 1) return null;
+  const closes = candles.slice(-period - 1).map(c => c.close);
+  let gains = 0, losses = 0;
+  for (let i = 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) gains += diff; else losses += Math.abs(diff);
+  }
+  const avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  return 100 - (100 / (1 + (gains / period) / avgLoss));
+}
+
 // ── LINE通知メッセージ生成 ────────────────────────────
-function buildMessage(pair, sig, lotSize) {
+function buildMessage(pair, sig, lotSize, ref = {}) {
   const isLong = sig.direction === "ロング";
   const trendMatch = (t) =>
     (isLong && t === "上昇") || (!isLong && t === "下降");
 
-  const axisCount = [sig.trend4H, sig.trend1H].filter(trendMatch).length + 1; // +1 は15M確定
+  const axisCount = [sig.trend4H, sig.trend1H].filter(trendMatch).length + 1;
   const precision = axisCount >= 3 ? "🔥 高（3軸一致）" : "⚠️ 普通（2軸一致）";
   const dir = isLong ? "🟢" : "🔴";
   const rrOk = sig.rr >= 2 ? "✅" : "⚡";
 
-  // ゴールドは小数2桁、JPY系は3桁、その他は5桁
   const decimals = pair === "XAU/USD" ? 2 : pair.includes("JPY") ? 3 : 5;
   const fmt = (n, d = decimals) => n.toFixed(d);
+  const pip = pipSize(pair);
 
-  const lcPips = Math.abs(sig.entry - sig.lc) / pipSize(pair);
+  const lcPips = Math.abs(sig.entry - sig.lc) / pip;
   const lotLine = lotSize !== null
     ? `\n💰 推奨ロット：${lotSize.toFixed(2)}lot（残高×2%リスク / LC${lcPips.toFixed(1)}pips）`
+    : "";
+
+  // 【参考情報】ブロック生成
+  const refLines = [];
+
+  // RSI警告
+  if (ref.rsi !== null && ref.rsi !== undefined) {
+    const rsiWarn = ref.rsi >= 70 ? " ⚠️ 買われすぎ注意" : ref.rsi <= 30 ? " ⚠️ 売られすぎ注意" : "";
+    refLines.push(`RSI(4H)：${ref.rsi.toFixed(0)}${rsiWarn}（30↓売られすぎ・70↑買われすぎ）`);
+  }
+
+  // ATR
+  if (ref.atrPips) {
+    const atrLevel = ref.atrPips >= 80 ? "高め⚡" : ref.atrPips <= 30 ? "低め😴" : "普通";
+    refLines.push(`ATR(4H)：${ref.atrPips}pips ${atrLevel}（今日の想定値幅）`);
+  }
+
+  // 前日高値・安値との近接チェック
+  if (ref.prevHigh && ref.prevLow) {
+    const nearHigh = Math.abs(sig.lc - ref.prevHigh) / pip <= 10 || Math.abs(sig.tp_e - ref.prevHigh) / pip <= 10;
+    const nearLow  = Math.abs(sig.lc - ref.prevLow)  / pip <= 10 || Math.abs(sig.tp_e - ref.prevLow)  / pip <= 10;
+    const prevText = `前日高値：${fmt(ref.prevHigh)}　前日安値：${fmt(ref.prevLow)}`;
+    const nearWarn = nearHigh ? "（LC/TPが前日高値に近接⚠️）" : nearLow ? "（LC/TPが前日安値に近接⚠️）" : "";
+    refLines.push(`${prevText}${nearWarn}`);
+  }
+
+  const refBlock = refLines.length > 0
+    ? `\n【参考】\n${refLines.join("\n")}`
     : "";
 
   return `📊 エントリーシグナル検知！
@@ -256,7 +308,7 @@ RR比：1:${sig.rr.toFixed(1)} ${rrOk}${lotLine}
 1H：${trendMatch(sig.trend1H) ? "✅" : "⚠️"} ${sig.trend1H}トレンド
 15M：✅ ネックライン${fmt(sig.neckline)} 終値ブレイク
 
-精度：${precision}`;
+精度：${precision}${refBlock}`;
 }
 
 // ── メイン（pair省略時は現在時刻でローテーション自動選択） ──
@@ -282,6 +334,8 @@ export async function main(targetPair) {
       await new Promise((r) => setTimeout(r, 1200));
       const candles4H = await fetchCandles(pair, "4h", 20);
       await new Promise((r) => setTimeout(r, 1200));
+      const candlesDaily = await fetchCandles(pair, "1day", 5);
+      await new Promise((r) => setTimeout(r, 1200));
 
       const trend4H = detectTrend(candles4H, 2);
       const trend1H = detectTrend(candles1H, 2);
@@ -300,9 +354,21 @@ export async function main(targetPair) {
         continue;
       }
 
+      // 参考情報を計算
+      const rsi   = calcRSI(candles4H, 14);
+      const atr   = calcATR(candles4H, 14);
+      const atrPips = atr ? Math.round(atr / pip) : null;
+      const prevDay = candlesDaily.length >= 2 ? candlesDaily[candlesDaily.length - 2] : null;
+      const ref = {
+        rsi,
+        atrPips,
+        prevHigh: prevDay?.high ?? null,
+        prevLow:  prevDay?.low  ?? null,
+      };
+
       const lcPips = Math.abs(signal.entry - signal.lc) / pipSize(pair);
       const lotSize = await calcLot(pair, lcPips);
-      const msg = buildMessage(pair, signal, lotSize);
+      const msg = buildMessage(pair, signal, lotSize, ref);
       await sendLine(msg);
 
       // 精度の自動入力用にシグナルをキャッシュ保存

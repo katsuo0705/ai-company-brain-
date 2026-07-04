@@ -256,6 +256,8 @@ import { main as fxSignal } from "./scripts/fx-signal.mjs";
 import { main as fxRecord } from "./scripts/fx-record.mjs";
 import { main as fxReport } from "./scripts/fx-report.mjs";
 import { main as fxDailySummary } from "./scripts/fx-daily-summary.mjs";
+import { main as fxEnvAnalysis } from "./scripts/fx-env-analysis.mjs";
+import { main as fxWeeklyReview } from "./scripts/fx-weekly-review.mjs";
 
 async function runMorningBriefing() {
   try { await morningBriefing(); }
@@ -304,5 +306,16 @@ setInterval(() => {
   if (jstHour === 21 && jstMin === 0) {
     console.log("📅 日次サマリー送信");
     fxDailySummary().catch((e) => console.error("日次サマリーエラー:", e.message));
+  }
+
+  // 毎日16:00に環境認識レポートをLINEに送信
+  if (jstHour === 16 && jstMin === 0) {
+    console.log("📊 環境認識レポート送信");
+    fxEnvAnalysis().catch((e) => console.error("環境認識エラー:", e.message));
+  }
+
+  // 日曜22:00に週次振り返りレポートをLINEに送信（週報と同タイミング）
+  if (jstDay === 0 && jstHour === 22 && jstMin === 0 && lastReportDay !== now.getUTCDate()) {
+    fxWeeklyReview().catch((e) => console.error("週次振り返りエラー:", e.message));
   }
 }, 60 * 1000);
