@@ -77,29 +77,89 @@ function toJSTISO(myfxStr) {
   return `${y}-${mo}-${d}T${h}:${mi}:00`;
 }
 
+// ── SMA計算 ────────────────────────────────────────────
+function calcSMA(candles, period) {
+  return candles.map((_, i) => {
+    if (i < period - 1) return null;
+    const sum = candles.slice(i - period + 1, i + 1).reduce((s, c) => s + c.close, 0);
+    return sum / period;
+  });
+}
+
+// ── バブルラベル描画 ───────────────────────────────────
+function drawBubble(ctx, x, y, text, bgColor, direction = "up") {
+  ctx.font = "bold 12px sans-serif";
+  const tw = ctx.measureText(text).width;
+  const bw = tw + 20, bh = 26, r = 6;
+  const bx = x - bw / 2, by = direction === "up" ? y - bh - 14 : y + 14;
+
+  // 丸角矩形
+  ctx.fillStyle = bgColor;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bw - r, by);
+  ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+  ctx.lineTo(bx + bw, by + bh - r);
+  ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+  ctx.lineTo(bx + r, by + bh);
+  ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+
+  // 三角の矢印
+  ctx.beginPath();
+  if (direction === "up") {
+    ctx.moveTo(x - 7, by + bh);
+    ctx.lineTo(x + 7, by + bh);
+    ctx.lineTo(x, by + bh + 10);
+  } else {
+    ctx.moveTo(x - 7, by);
+    ctx.lineTo(x + 7, by);
+    ctx.lineTo(x, by - 10);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // テキスト
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.fillText(text, x, by + bh / 2 + 4);
+}
+
 // ── ローソク足チャート描画 ─────────────────────────────
 function drawChart(candles, trade) {
-  const W = 960, H = 540;
-  const PAD = { top: 60, right: 130, bottom: 50, left: 75 };
+  const W = 1040, H = 560;
+  const PAD = { top: 64, right: 100, bottom: 50, left: 80 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
-  // 背景
+  // 背景（TradingViewライク）
   ctx.fillStyle = "#131722";
   ctx.fillRect(0, 0, W, H);
 
-  // 価格レンジ
+  // SMA計算
+  const sma25  = calcSMA(candles, 25);
+  const sma75  = calcSMA(candles, 75);
+  const sma200 = calcSMA(candles, 200);
+
+  // 価格レンジ（SMAも含める）
   const prices = candles.flatMap(c => [c.high, c.low]);
   prices.push(trade.entry, trade.tp, trade.lc);
-  const minP = Math.min(...prices) * 0.9998;
-  const maxP = Math.max(...prices) * 1.0002;
-  const range = maxP - minP;
-  const toY = p => PAD.top + cH * (1 - (p - minP) / range);
+  [...sma25, ...sma75, ...sma200].forEach(v => v && prices.push(v));
+  const minP = Math.min(...prices);
+  const maxP = Math.max(...prices);
+  const pad  = (maxP - minP) * 0.06;
+  const lo   = minP - pad, hi = maxP + pad;
+  const range = hi - lo;
+  const toY = p => PAD.top + cH * (1 - (p - lo) / range);
 
-  const candleW = Math.max(4, Math.floor(cW / candles.length) - 2);
+  const step   = cW / candles.length;
+  const candleW = Math.max(3, step * 0.6);
 
   // グリッド
   ctx.strokeStyle = "#2a2e39";
@@ -107,16 +167,59 @@ function drawChart(candles, trade) {
   for (let i = 0; i <= 6; i++) {
     const y = PAD.top + (cH / 6) * i;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
-    const p = maxP - (range / 6) * i;
+    const p = hi - (range / 6) * i;
     ctx.fillStyle = "#787b86";
     ctx.font = "11px sans-serif";
     ctx.textAlign = "right";
     ctx.fillText(p.toFixed(3), PAD.left - 6, y + 4);
   }
 
+  // TP・LC 塗りつぶし領域
+  const entryY = toY(trade.entry);
+  const tpY    = toY(trade.tp);
+  const lcY    = toY(trade.lc);
+  const isShort = trade.direction === "ショート";
+
+  ctx.fillStyle = "#26a69a18";
+  ctx.fillRect(PAD.left, Math.min(entryY, tpY), cW, Math.abs(entryY - tpY));
+  ctx.fillStyle = "#ef535018";
+  ctx.fillRect(PAD.left, Math.min(entryY, lcY), cW, Math.abs(entryY - lcY));
+
+  // 水平ライン（破線）
+  const hDash = (y, color) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.setLineDash([]);
+  };
+  hDash(tpY,    "#26a69a");
+  hDash(entryY, "#ffcc00");
+  hDash(lcY,    "#ef5350");
+
+  // SMAライン
+  const drawSMA = (smaArr, color, lineW = 1.5) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineW;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    let started = false;
+    smaArr.forEach((v, i) => {
+      if (v === null) return;
+      const x = PAD.left + step * i + step / 2;
+      const y = toY(v);
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  };
+  drawSMA(sma200, "#e0e0e0", 1.2); // 白（細め）
+  drawSMA(sma75,  "#4caf50", 1.5); // 緑
+  drawSMA(sma25,  "#ef5350", 1.8); // 赤
+
   // ローソク足
   candles.forEach((c, i) => {
-    const x = PAD.left + (cW / candles.length) * i + candleW / 2;
+    const x = PAD.left + step * i + step / 2;
     const isUp = c.close >= c.open;
     const col = isUp ? "#26a69a" : "#ef5350";
     ctx.strokeStyle = col;
@@ -128,36 +231,7 @@ function drawChart(candles, trade) {
     ctx.fillRect(x - candleW / 2, bTop, candleW, bH);
   });
 
-  // TP・LC 塗りつぶし領域
-  const entryY = toY(trade.entry);
-  const tpY    = toY(trade.tp);
-  const lcY    = toY(trade.lc);
-  ctx.fillStyle = "#26a69a22";
-  ctx.fillRect(PAD.left, Math.min(entryY, tpY), cW, Math.abs(entryY - tpY));
-  ctx.fillStyle = "#ef535022";
-  ctx.fillRect(PAD.left, Math.min(entryY, lcY), cW, Math.abs(entryY - lcY));
-
-  // 水平ライン
-  const hLine = (y, color, label, price) => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right + 10, y); ctx.stroke();
-    ctx.setLineDash([]);
-    const lw = 118;
-    ctx.fillStyle = color;
-    ctx.fillRect(W - PAD.right + 12, y - 10, lw, 20);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 11px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(`${label}: ${price.toFixed(3)}`, W - PAD.right + 16, y + 4);
-  };
-  hLine(tpY,    "#26a69a", "TP",        trade.tp);
-  hLine(entryY, "#ffcc00", "エントリー", trade.entry);
-  hLine(lcY,    "#ef5350", "LC",         trade.lc);
-
-  // エントリー・決済マーカー
-  const isShort = trade.direction === "ショート";
+  // エントリー・決済マーカー（バブルラベル）
   const findNearest = (isoStr) => {
     if (!isoStr) return -1;
     const target = new Date(isoStr).getTime();
@@ -169,49 +243,73 @@ function drawChart(candles, trade) {
     return idx;
   };
 
-  const drawMarker = (candleIdx, isEntry) => {
-    if (candleIdx < 0) return;
-    const c = candles[candleIdx];
-    const x = PAD.left + (cW / candles.length) * candleIdx + candleW / 2;
-    ctx.textAlign = "center";
+  const entryIdx = findNearest(trade.openJSTISO);
+  const closeIdx = findNearest(trade.closeJSTISO);
 
-    if (isEntry) {
-      // エントリー：ショートは▼上から、ロングは▲下から
-      const arrowY = isShort ? toY(c.high) - 28 : toY(c.low) + 10;
-      const labelY = isShort ? arrowY - 4 : arrowY + 22;
-      ctx.fillStyle = "#ffcc00";
-      ctx.font = "bold 20px sans-serif";
-      ctx.fillText(isShort ? "▼" : "▲", x, arrowY);
-      ctx.font = "bold 10px sans-serif";
-      ctx.fillStyle = "#ffcc00";
-      ctx.fillText("IN", x, labelY);
+  if (entryIdx >= 0) {
+    const c = candles[entryIdx];
+    const x = PAD.left + step * entryIdx + step / 2;
+    const label = `${trade.entry.toFixed(3)} IN(${isShort ? "S" : "L"})`;
+    if (isShort) {
+      drawBubble(ctx, x, toY(c.high), label, "#e53935", "up");
     } else {
-      // 決済：ショートは▲下から、ロングは▼上から
-      const arrowY = isShort ? toY(c.low) + 10 : toY(c.high) - 28;
-      const labelY = isShort ? arrowY + 22 : arrowY - 4;
-      ctx.fillStyle = "#26a69a";
-      ctx.font = "bold 20px sans-serif";
-      ctx.fillText(isShort ? "▲" : "▼", x, arrowY);
-      ctx.font = "bold 10px sans-serif";
-      ctx.fillStyle = "#26a69a";
-      ctx.fillText("OUT", x, labelY);
+      drawBubble(ctx, x, toY(c.low), label, "#e53935", "down");
     }
-  };
+  }
 
-  drawMarker(findNearest(trade.openJSTISO),  true);
-  drawMarker(findNearest(trade.closeJSTISO), false);
+  if (closeIdx >= 0) {
+    const c = candles[closeIdx];
+    const x = PAD.left + step * closeIdx + step / 2;
+    const resultColor = trade.result === "勝ち" ? "#26a69a" : "#ef5350";
+    const label = `${trade.result === "勝ち" ? "✓" : "✗"} OUT ${parseFloat(trade.pips || 0) >= 0 ? "+" : ""}${parseFloat(trade.pips || 0).toFixed(1)}p`;
+    if (isShort) {
+      drawBubble(ctx, x, toY(c.low), label, resultColor, "down");
+    } else {
+      drawBubble(ctx, x, toY(c.high), label, resultColor, "up");
+    }
+  }
+
+  // 右端ラベル
+  const rLabel = (y, color, text) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(W - PAD.right + 4, y - 10, PAD.right - 4, 20);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(text, W - PAD.right + 8, y + 4);
+  };
+  rLabel(tpY,    "#26a69a", `TP ${trade.tp.toFixed(3)}`);
+  rLabel(entryY, "#ffcc00", `IN ${trade.entry.toFixed(3)}`);
+  rLabel(lcY,    "#ef5350", `LC ${trade.lc.toFixed(3)}`);
+
+  // SMA凡例（右下）
+  const legend = [
+    { label: "SMA25", color: "#ef5350" },
+    { label: "SMA75", color: "#4caf50" },
+    { label: "SMA200", color: "#e0e0e0" },
+  ];
+  legend.forEach((l, i) => {
+    const lx = W - PAD.right - 230 + i * 78;
+    const ly = H - 14;
+    ctx.fillStyle = l.color;
+    ctx.fillRect(lx, ly - 7, 18, 3);
+    ctx.font = "10px sans-serif";
+    ctx.fillStyle = l.color;
+    ctx.textAlign = "left";
+    ctx.fillText(l.label, lx + 22, ly);
+  });
 
   // タイトル
-  const dir = isShort ? "🔴 ショート" : "🟢 ロング";
-  const result = trade.result === "勝ち" ? "✅ 勝ち" : trade.result === "負け" ? "❌ 負け" : "";
+  const dir = isShort ? "SHORT" : "LONG";
+  const resultTxt = trade.result === "勝ち" ? " ✓WIN" : trade.result === "負け" ? " ✗LOSE" : "";
+  const rrTxt = trade.rr ? `  RR${trade.rr}` : "";
   ctx.fillStyle = "#d1d4dc";
   ctx.font = "bold 14px sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText(`${trade.symbol}  15分足  ${dir}  IN:${trade.openDateTime}  OUT:${trade.closeDateTime}`, PAD.left, 32);
+  ctx.fillText(`${trade.symbol}  15min  ${dir}${resultTxt}${rrTxt}`, PAD.left, 32);
   ctx.fillStyle = "#787b86";
   ctx.font = "12px sans-serif";
-  const rr = trade.rr ? `RR ${trade.rr}` : "";
-  ctx.fillText(`${rr}  ${result}`, PAD.left, H - 18);
+  ctx.fillText(`IN: ${trade.openDateTime}  →  OUT: ${trade.closeDateTime}`, PAD.left, 50);
 
   return canvas.toBuffer("image/png");
 }
