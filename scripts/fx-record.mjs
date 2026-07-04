@@ -18,7 +18,7 @@ const SHEET_ID = process.env.TRADE_SHEET_ID;
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const OWNER_ID = process.env.LINE_OWNER_USER_ID;
 
-const HEADERS = ['日付','エントリー時間(JST)','決済時間(JST)','ペア','方向','ロット数','精度','エントリー価格','TP','LC','RR比','結果','損益(pips)','損益(円)','ルール通り','メモ','チャートURL(4H)','チャートURL(1H)','チャートURL(15M)','myfxbook_ID'];
+const HEADERS = ['エントリー日時(JST)','決済日時(JST)','ペア','方向','ロット数','精度','エントリー価格','TP','LC','RR比','結果','損益(pips)','損益(円)','ルール通り','メモ','チャートURL(4H)','チャートURL(1H)','チャートURL(15M)','myfxbook_ID'];
 
 // ── Google Sheets クライアント ────────────────────────
 function getSheetsClient() {
@@ -106,7 +106,7 @@ async function ensureMonthSheet(sheets, monthTab) {
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${monthTab}!A1:T1`,
+    range: `${monthTab}!A1:S1`,
     valueInputOption: "RAW",
     requestBody: { values: [HEADERS] }
   });
@@ -199,10 +199,13 @@ function formatTrade(t) {
   // ルール通り：RR比から自動判定
   const ruleCompliance = judgeRuleCompliance(tp, lc, entry);
 
+  const openDateTime = open.date && open.time ? `${open.date} ${open.time}` : "";
+  const closeDateTime = close.date && close.time ? `${close.date} ${close.time}` : "";
+
   return {
     monthTab,
     row: [
-      date, open.time, close.time, pair, direction, lots, precision,
+      openDateTime, closeDateTime, pair, direction, lots, precision,
       entry > 0 ? entry.toFixed(3) : "",
       tp > 0 ? tp.toFixed(3) : "",
       lc > 0 ? lc.toFixed(3) : "",
@@ -271,6 +274,10 @@ async function ensureLegendSheet(sheets) {
     ["○", "RR比 1.5以上。ルール通りにエントリー・決済できた"],
     ["△", "RR比 1.0〜1.5。またはTP/LCが未設定。一部ルールを守れなかった"],
     ["×", "RR比 1.0未満。ルール違反（利確が早すぎ、または損切りが遅すぎ）"],
+    [""],
+    ["【日時フォーマット】"],
+    ["エントリー日時(JST)", "例：2026/07/04 22:15　※日をまたぐトレードも正確に記録"],
+    ["決済日時(JST)", "例：2026/07/05 09:30"],
     [""],
     ["【チャートURL】TradingViewのチャートリンク"],
     ["チャートURL(4H)", "環境認識用（4時間足）。エントリー前のスクリーンショットリンクを貼る"],
@@ -363,7 +370,7 @@ export async function main() {
     await ensureMonthSheet(sheets, monthTab);
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${monthTab}!A:T`,
+      range: `${monthTab}!A:S`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: rows },
