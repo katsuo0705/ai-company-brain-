@@ -18,7 +18,9 @@ const SHEET_ID = process.env.TRADE_SHEET_ID;
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const OWNER_ID = process.env.LINE_OWNER_USER_ID;
 
-const HEADERS = ['エントリー日時(JST)','決済日時(JST)','ペア','方向','ロット数','精度','エントリー価格','TP','LC','RR比','結果','損益(pips)','損益(円)','ルール通り','メモ','チャートURL(4H)','チャートURL(1H)','チャートURL(15M)','myfxbook_ID'];
+const HEADERS = ['エントリー日時(JST)','決済日時(JST)','ペア','方向','ロット数','精度','エントリー価格','TP','LC','RR比','結果','損益(pips)','損益(円)','ルール通り','メモ','チャートURL(4H)','チャートURL(1H)','チャートURL(15M)','チャート画像','myfxbook_ID'];
+// myfxbook_IDは最終列（T列）
+const ID_COLUMN = "T";
 
 // ── Google Sheets クライアント ────────────────────────
 function getSheetsClient() {
@@ -106,7 +108,7 @@ async function ensureMonthSheet(sheets, monthTab) {
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${monthTab}!A1:S1`,
+    range: `${monthTab}!A1:${ID_COLUMN}1`,
     valueInputOption: "RAW",
     requestBody: { values: [HEADERS] }
   });
@@ -124,6 +126,14 @@ async function ensureMonthSheet(sheets, monthTab) {
             borders: { bottom: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } } }
           }}, fields: "userEnteredFormat" }},
         { updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 1 } }, fields: "gridProperties.frozenRowCount" }},
+        // 列幅設定
+        { updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 2 },   properties: { pixelSize: 155 }, fields: "pixelSize" }},  // 日時列
+        { updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: 2, endIndex: 3 },   properties: { pixelSize: 90  }, fields: "pixelSize" }},  // ペア
+        { updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: 14, endIndex: 15 }, properties: { pixelSize: 120 }, fields: "pixelSize" }},  // メモ
+        { updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: 15, endIndex: 18 }, properties: { pixelSize: 200 }, fields: "pixelSize" }},  // チャートURL x3
+        { updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: 18, endIndex: 19 }, properties: { pixelSize: 250 }, fields: "pixelSize" }},  // チャート画像
+        // 行の高さを自動調整（データ行）
+        { updateDimensionProperties: { range: { sheetId, dimension: "ROWS", startIndex: 1, endIndex: 500 },    properties: { pixelSize: 80  }, fields: "pixelSize" }},
       ]}
     });
   }
@@ -140,7 +150,7 @@ async function getExistingIds(sheets) {
     try {
       const res = await sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range: `${title}!Q2:Q1000`,
+        range: `${title}!${ID_COLUMN}2:${ID_COLUMN}1000`,
       });
       (res.data.values || []).flat().forEach(id => allIds.add(id));
     } catch {}
@@ -210,7 +220,7 @@ function formatTrade(t) {
       tp > 0 ? tp.toFixed(3) : "",
       lc > 0 ? lc.toFixed(3) : "",
       rr, result, pipsStr, profit.toFixed(0), ruleCompliance, "",
-      "", "", "",  // チャートURL(4H), チャートURL(1H), チャートURL(15M)
+      "", "", "", "",  // チャートURL(4H), チャートURL(1H), チャートURL(15M), チャート画像
       String(t.id || ""),
     ]
   };
@@ -283,6 +293,7 @@ async function ensureLegendSheet(sheets) {
     ["チャートURL(4H)", "環境認識用（4時間足）。エントリー前のスクリーンショットリンクを貼る"],
     ["チャートURL(1H)", "トレンド確認用（1時間足）"],
     ["チャートURL(15M)", "エントリー根拠用（15分足）。ネックラインブレイクの確認"],
+    ["チャート画像", "TradingViewのスクリーンショットを貼る欄。セルを選択 → 挿入 → 画像 → セル内に画像を挿入"],
     [""],
     ["【振り返りのコツ】"],
     ["・ルール通り×のトレードだけ抽出して勝率を比較する"],
@@ -370,7 +381,7 @@ export async function main() {
     await ensureMonthSheet(sheets, monthTab);
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${monthTab}!A:S`,
+      range: `${monthTab}!A:${ID_COLUMN}`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: rows },
