@@ -127,10 +127,11 @@ async function analyzePair(pair) {
   const fmt = n => n.toFixed(dec);
 
   const candles1H    = await fetchCandles(pair, "1h",   210);
-  await new Promise(r => setTimeout(r, 1500));
+  await new Promise(r => setTimeout(r, 8000));
   const candles4H    = await fetchCandles(pair, "4h",   210);
-  await new Promise(r => setTimeout(r, 1500));
+  await new Promise(r => setTimeout(r, 8000));
   const candlesDaily = await fetchCandles(pair, "1day", 210);
+  await new Promise(r => setTimeout(r, 8000));
 
   const trend4H  = detectTrend(candles4H.slice(-20), 2);
   const trend1H  = detectTrend(candles1H.slice(-24), 3);
