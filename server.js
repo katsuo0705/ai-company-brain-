@@ -258,6 +258,7 @@ import { main as fxReport } from "./scripts/fx-report.mjs";
 import { main as fxDailySummary } from "./scripts/fx-daily-summary.mjs";
 import { main as fxEnvAnalysis } from "./scripts/fx-env-analysis.mjs";
 import { main as fxWeeklyReview } from "./scripts/fx-weekly-review.mjs";
+import { main as fxIndicatorResult } from "./scripts/fx-indicator-result.mjs";
 
 async function runMorningBriefing() {
   try { await morningBriefing(); }
@@ -306,6 +307,11 @@ setInterval(() => {
   if (jstHour === 21 && jstMin === 0) {
     console.log("📅 日次サマリー送信");
     fxDailySummary().catch((e) => console.error("日次サマリーエラー:", e.message));
+  }
+
+  // 5分ごとに経済指標の結果をチェック（指標発表後に乖離・変動幅をLINE送信）
+  if (jstMin % 5 === 0) {
+    fxIndicatorResult().catch((e) => console.error("指標結果チェックエラー:", e.message));
   }
 
   // 毎日16:00に環境認識レポートをLINEに送信
