@@ -14,9 +14,13 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@line/bot-sdk": "^9.5.0",
+    "canvas": "^3.2.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "googleapis": "^144.0.0"
+  },
+  "allowScripts": {
+    "canvas@3.2.3": true
   }
 }
