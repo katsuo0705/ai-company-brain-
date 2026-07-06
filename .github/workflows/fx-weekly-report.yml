@@ -1,0 +1,26 @@
+name: FX Weekly Report
+
+on:
+  schedule:
+    - cron: '0 13 * * 0'  # 毎週日曜 22:00 JST (13:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  send-weekly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Send FX Weekly Report
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_OWNER_USER_ID: ${{ secrets.LINE_OWNER_USER_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          TRADE_SHEET_ID: ${{ secrets.TRADE_SHEET_ID }}
+        run: node scripts/fx-weekly-review.mjs

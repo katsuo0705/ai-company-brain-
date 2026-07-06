@@ -1,0 +1,22 @@
+name: SNS Daily Reminder
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # 毎日 8:00 JST (23:00 UTC 前日)
+  workflow_dispatch:
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Send SNS Daily Reminder
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_OWNER_USER_ID: ${{ secrets.LINE_OWNER_USER_ID }}
+        run: node scripts/sns-daily-reminder.mjs
