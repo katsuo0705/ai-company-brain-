@@ -1,0 +1,23 @@
+name: FX Signal
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # 15分ごと（24時間）
+  workflow_dispatch:
+
+jobs:
+  check-signal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Check FX Signal
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_OWNER_USER_ID: ${{ secrets.LINE_OWNER_USER_ID }}
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+        run: node scripts/fx-signal.mjs
