@@ -66,43 +66,45 @@ async function getEconomicEvents() {
   }
 }
 
-// NewsAPIからFX関連ニュースを取得
+// RSSフィードからFX関連ニュースを取得（APIキー不要・GitHub Actionsから動作）
 async function getFxNews() {
-  try {
-    const res = await fetch(
-      `https://newsapi.org/v2/everything?` +
-        `q=USD+JPY+EUR+GBP+forex+FX+金利+為替+ポンド&` +
-        `language=jp&` +
-        `sortBy=publishedAt&` +
-        `pageSize=5&` +
-        `apiKey=${NEWS_API_KEY}`
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.articles || []).slice(0, 3);
-  } catch (e) {
-    console.error("ニュース取得エラー:", e.message);
-    return [];
+  const feeds = [
+    "https://feeds.reuters.com/reuters/businessNews",
+    "https://www.forexlive.com/feed/news",
+    "https://feeds.bbci.co.uk/news/business/rss.xml",
+  ];
+
+  for (const feedUrl of feeds) {
+    try {
+      const res = await fetch(feedUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; FXBot/1.0)" },
+      });
+      if (!res.ok) continue;
+      const xml = await res.text();
+
+      // RSSのtitleとlinkを抽出
+      const items = [];
+      const itemRegex = /<item[\s\S]*?<\/item>/g;
+      const titleRegex = /<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/;
+      let match;
+      while ((match = itemRegex.exec(xml)) !== null && items.length < 3) {
+        const titleMatch = match[0].match(titleRegex);
+        const title = (titleMatch?.[1] || titleMatch?.[2] || "").trim();
+        if (title && title.length > 5) {
+          items.push({ title });
+        }
+      }
+      if (items.length > 0) return items;
+    } catch (e) {
+      continue;
+    }
   }
+  return [];
 }
 
-// 英語ニュースも試す
+// 後方互換のため残す（使用しない）
 async function getFxNewsEn() {
-  try {
-    const res = await fetch(
-      `https://newsapi.org/v2/everything?` +
-        `q=USD+JPY+EUR+GBP+forex+interest+rate&` +
-        `language=en&` +
-        `sortBy=publishedAt&` +
-        `pageSize=5&` +
-        `apiKey=${NEWS_API_KEY}`
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.articles || []).slice(0, 3);
-  } catch (e) {
-    return [];
-  }
+  return [];
 }
 
 // インパクト絵文字
