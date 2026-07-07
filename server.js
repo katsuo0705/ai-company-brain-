@@ -259,6 +259,9 @@ import { main as fxDailySummary } from "./scripts/fx-daily-summary.mjs";
 import { main as fxEnvAnalysis } from "./scripts/fx-env-analysis.mjs";
 import { main as fxWeeklyReview } from "./scripts/fx-weekly-review.mjs";
 import { main as fxIndicatorResult } from "./scripts/fx-indicator-result.mjs";
+import { main as snsWeeklyReport } from "./scripts/sns-weekly-report.mjs";
+import { main as snsDailyReminder } from "./scripts/sns-daily-reminder.mjs";
+import { main as dailyReport } from "./scripts/daily-report.mjs";
 
 async function runMorningBriefing() {
   try { await morningBriefing(); }
@@ -301,6 +304,24 @@ setInterval(() => {
     lastReportDay = now.getUTCDate();
     console.log("📊 週報・月報 自動生成");
     fxReport().catch((e) => console.error("週報・月報エラー:", e.message));
+  }
+
+  // 日曜23:00にSNS週次レポートをLINEに送信
+  if (jstDay === 0 && jstHour === 23 && jstMin === 0) {
+    console.log("📱 SNS週次レポート自動送信");
+    snsWeeklyReport().catch((e) => console.error("SNS週次レポートエラー:", e.message));
+  }
+
+  // 毎日22:00に日報スプレッドシートに行追加＋LINE通知
+  if (jstHour === 22 && jstMin === 0) {
+    console.log("📝 日報自動記入");
+    dailyReport().catch((e) => console.error("日報エラー:", e.message));
+  }
+
+  // 毎朝8:00にSNSデイリーリマインダーをLINEに送信
+  if (jstHour === 8 && jstMin === 0) {
+    console.log("📱 SNSデイリーリマインダー送信");
+    snsDailyReminder().catch((e) => console.error("SNSリマインダーエラー:", e.message));
   }
 
   // 毎日21:00に日次サマリーをLINEに送信
