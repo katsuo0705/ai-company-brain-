@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
+    "@google/generative-ai": "^0.24.1",
     "@line/bot-sdk": "^9.5.0",
     "canvas": "^3.2.3",
     "cors": "^2.8.5",
