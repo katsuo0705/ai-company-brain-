@@ -69,9 +69,9 @@ async function getEconomicEvents() {
 // FXニュース関連Xアカウント（固定リンク）
 function getFxNewsAccounts() {
   return [
-    { name: "ザイFX！", handle: "@zai_FX", url: "https://x.com/zai_FX" },
-    { name: "みんかぶFX", handle: "@minkabu_FX", url: "https://x.com/minkabu_FX" },
-    { name: "Bloomberg Japan", handle: "@BloombergJapan", url: "https://x.com/BloombergJapan" },
+    { name: "外国為替FXニュース_GMOコイン", handle: "@gmo_coin_FXnews", url: "https://x.com/gmo_coin_FXnews" },
+    { name: "セントラル短資FX　為替ニュース", handle: "@CTFX_NEWS", url: "https://x.com/CTFX_NEWS" },
+    { name: "FX・為替ニュース速報", handle: "@fxnews_99", url: "https://x.com/fxnews_99" },
   ];
 }
 
