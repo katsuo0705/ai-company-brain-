@@ -66,40 +66,13 @@ async function getEconomicEvents() {
   }
 }
 
-// RSSフィードからFX関連ニュースを取得（APIキー不要・GitHub Actionsから動作）
-async function getFxNews() {
-  const feeds = [
-    "https://feeds.reuters.com/reuters/businessNews",
-    "https://www.forexlive.com/feed/news",
-    "https://feeds.bbci.co.uk/news/business/rss.xml",
+// FXニュース関連Xアカウント（固定リンク）
+function getFxNewsAccounts() {
+  return [
+    { name: "ザイFX！", handle: "@zai_FX", url: "https://x.com/zai_FX" },
+    { name: "みんかぶFX", handle: "@minkabu_FX", url: "https://x.com/minkabu_FX" },
+    { name: "Bloomberg Japan", handle: "@BloombergJapan", url: "https://x.com/BloombergJapan" },
   ];
-
-  for (const feedUrl of feeds) {
-    try {
-      const res = await fetch(feedUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; FXBot/1.0)" },
-      });
-      if (!res.ok) continue;
-      const xml = await res.text();
-
-      // RSSのtitleとlinkを抽出
-      const items = [];
-      const itemRegex = /<item[\s\S]*?<\/item>/g;
-      const titleRegex = /<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/;
-      let match;
-      while ((match = itemRegex.exec(xml)) !== null && items.length < 3) {
-        const titleMatch = match[0].match(titleRegex);
-        const title = (titleMatch?.[1] || titleMatch?.[2] || "").trim();
-        if (title && title.length > 5) {
-          items.push({ title });
-        }
-      }
-      if (items.length > 0) return items;
-    } catch (e) {
-      continue;
-    }
-  }
-  return [];
 }
 
 // 後方互換のため残す（使用しない）
@@ -118,11 +91,10 @@ function impactEmoji(impact) {
 export async function main() {
   console.log("📊 モーニングブリーフィング作成中...");
 
-  const [events, newsJp, newsEn] = await Promise.all([
+  const [events] = await Promise.all([
     getEconomicEvents(),
-    getFxNews(),
-    getFxNewsEn(),
   ]);
+  const newsAccounts = getFxNewsAccounts();
 
   const today = new Date();
   const dateStr = `${today.getMonth() + 1}/${today.getDate()}(${["日","月","火","水","木","金","土"][today.getDay()]})`;
@@ -145,16 +117,10 @@ export async function main() {
     }
   }
 
-  // ニュース
-  const news = newsJp.length > 0 ? newsJp : newsEn;
-  msg += `\n【FX関連ニュース】\n`;
-  if (news.length === 0) {
-    msg += `ニュースを取得できませんでした\n`;
-  } else {
-    for (const n of news) {
-      const title = n.title?.slice(0, 40) || "";
-      msg += `・${title}\n`;
-    }
+  // FXニュースアカウント
+  msg += `\n【FXニュース チェック先】\n`;
+  for (const a of newsAccounts) {
+    msg += `・${a.name}（${a.handle}）\n  ${a.url}\n`;
   }
 
   msg += `${"─".repeat(20)}\n`;
