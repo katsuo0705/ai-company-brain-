@@ -1,8 +1,6 @@
 name: FX Daily Summary
 
 on:
-  schedule:
-    - cron: '0 12 * * *'  # 毎日 21:00 JST (12:00 UTC)
   workflow_dispatch:
 
 jobs:

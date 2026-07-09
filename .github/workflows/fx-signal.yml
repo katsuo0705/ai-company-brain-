@@ -1,8 +1,6 @@
 name: FX Signal
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'  # 15分ごと（24時間）
   workflow_dispatch:
 
 jobs:

@@ -1,8 +1,6 @@
 name: SNS Daily Reminder
 
 on:
-  schedule:
-    - cron: '0 23 * * *'  # 毎日 8:00 JST (23:00 UTC 前日)
   workflow_dispatch:
 
 jobs:
