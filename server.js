@@ -272,6 +272,7 @@ async function runMorningBriefing() {
 let lastSignalMin = -1; // 同じ15分枠で重複実行しない
 let lastRecordHour = -1; // 1時間ごとのトレード記録
 let lastReportDay = -1;  // 週報・月報（日曜22:00に実行）
+let lastBriefingDay = -1; // モーニングブリーフィング（1日1回）
 
 setInterval(() => {
   const now = new Date();
@@ -279,8 +280,10 @@ setInterval(() => {
   const jstMin = now.getUTCMinutes();
   const jstDay = now.getUTCDay(); // 0=日曜
 
-  // 朝3:30 モーニングブリーフィング
-  if (jstHour === 3 && jstMin === 30) {
+  // 朝3:30 モーニングブリーフィング（1日1回のみ・DISABLE_BRIEFING=true で無効化）
+  if (jstHour === 3 && jstMin === 30 && lastBriefingDay !== now.getUTCDate()
+      && process.env.DISABLE_BRIEFING !== "true") {
+    lastBriefingDay = now.getUTCDate();
     console.log("📊 モーニングブリーフィング開始");
     runMorningBriefing();
   }

@@ -96,8 +96,10 @@ export async function main() {
   ]);
   const newsAccounts = getFxNewsAccounts();
 
-  const today = new Date();
-  const dateStr = `${today.getMonth() + 1}/${today.getDate()}(${["日","月","火","水","木","金","土"][today.getDay()]})`;
+  // JST固定（RenderなどUTC環境でも正しい日付になるよう明示的に変換）
+  const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const dateStr = `${jstNow.getUTCMonth() + 1}/${jstNow.getUTCDate()}(${["日","月","火","水","木","金","土"][jstNow.getUTCDay()]})`;
+  const today = jstNow;
 
   let msg = `📊 ${dateStr} おはようございます！\nFXモーニングブリーフィングです。\n`;
   msg += `${"─".repeat(20)}\n`;
