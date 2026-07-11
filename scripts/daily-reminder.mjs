@@ -7,6 +7,7 @@
 import * as dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
+import { buildDailyTaskMessage } from "./daily-task.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "../.env") });
@@ -89,25 +90,17 @@ export async function main() {
   // 日替わり名言（日付でローテーション）
   const quote = QUOTES[day % QUOTES.length];
 
+  // ロードマップ逆算タスクを取得
+  const taskMsg = buildDailyTaskMessage();
+
+  // リマインダー形式に整形（ヘッダーを朝の挨拶に差し替え）
+  const taskBody = taskMsg.split("\n").slice(2).join("\n"); // 1行目の日付見出しを除く
+
   let msg = `📱 ${month}/${day}(${dayNames[dow]}) おはようございます☀️\n\n`;
-  msg += `【今日やること】\n`;
-
-  if (isWeekend) {
-    msg += `★★★ 朝・昼・晩の投稿（3本）\n`;
-    msg += `★★☆ アウトバウンド（リプ5・いいね20）\n`;
-    msg += `★★☆ 来週投稿ストック作成\n`;
-    msg += `\n🚫 FX本日休場\n`;
-  } else {
-    msg += `★★★ 朝・昼・晩の投稿（3本）\n`;
-    msg += `★★☆ アウトバウンド（リプ5・いいね20）\n`;
-    msg += `★★☆ FX環境認識・シグナル確認\n`;
-    msg += `★☆☆ FX夜振り返り・記録更新\n`;
-  }
-
-  msg += `\n「${quote}」\n`;
+  msg += taskBody;
+  msg += `\n\n「${quote}」\n`;
   msg += `━━━━━━━━━━\n`;
-  msg += `今月残り${remainingDays}日｜${GOAL.followers.current}→${GOAL.followers.target}人🎯\n`;
-  msg += `あと${remainingFollowers}人`;
+  msg += `今月残り${remainingDays}日🎯`;
 
   await sendLine(msg);
 }
