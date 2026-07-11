@@ -290,12 +290,6 @@ setInterval(() => {
     runMorningBriefing();
   }
 
-  // 朝7:00 デイリーリマインダー（1日1回）
-  if (jstHour === 7 && jstMin === 0 && lastReminderDay !== now.getUTCDate()) {
-    lastReminderDay = now.getUTCDate();
-    console.log("📱 デイリーリマインダー送信");
-    runDailyReminder().catch(e => console.error("デイリーリマインダーエラー:", e.message));
-  }
 
   // 15分ごと（00/15/30/45分）にFXシグナルチェック
   if (jstMin % 15 === 0 && jstMin !== lastSignalMin) {
@@ -330,10 +324,11 @@ setInterval(() => {
     dailyReport().catch((e) => console.error("日報エラー:", e.message));
   }
 
-  // 毎朝8:00にSNSデイリーリマインダーをLINEに送信
-  if (jstHour === 8 && jstMin === 0) {
-    console.log("📱 SNSデイリーリマインダー送信");
-    snsDailyReminder().catch((e) => console.error("SNSリマインダーエラー:", e.message));
+  // 毎朝8:00にデイリーリマインダーをLINEに送信（新形式：日替わり名言・平日/土日切替）
+  if (jstHour === 8 && jstMin === 0 && lastReminderDay !== now.getUTCDate()) {
+    lastReminderDay = now.getUTCDate();
+    console.log("📱 デイリーリマインダー送信");
+    runDailyReminder().catch((e) => console.error("デイリーリマインダーエラー:", e.message));
   }
 
   // 毎日21:00に日次サマリーをLINEに送信
