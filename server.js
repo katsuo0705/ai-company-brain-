@@ -262,6 +262,7 @@ import { main as fxIndicatorResult } from "./scripts/fx-indicator-result.mjs";
 import { main as snsWeeklyReport } from "./scripts/sns-weekly-report.mjs";
 import { main as snsDailyReminder } from "./scripts/sns-daily-reminder.mjs";
 import { main as dailyReport } from "./scripts/daily-report.mjs";
+import { main as runDailyReminder } from "./scripts/daily-reminder.mjs";
 
 async function runMorningBriefing() {
   try { await morningBriefing(); }
@@ -273,6 +274,7 @@ let lastSignalMin = -1; // 同じ15分枠で重複実行しない
 let lastRecordHour = -1; // 1時間ごとのトレード記録
 let lastReportDay = -1;  // 週報・月報（日曜22:00に実行）
 let lastBriefingDay = -1; // モーニングブリーフィング（1日1回）
+let lastReminderDay = -1; // デイリーリマインダー（1日1回）
 
 setInterval(() => {
   const now = new Date();
@@ -286,6 +288,13 @@ setInterval(() => {
     lastBriefingDay = now.getUTCDate();
     console.log("📊 モーニングブリーフィング開始");
     runMorningBriefing();
+  }
+
+  // 朝7:00 デイリーリマインダー（1日1回）
+  if (jstHour === 7 && jstMin === 0 && lastReminderDay !== now.getUTCDate()) {
+    lastReminderDay = now.getUTCDate();
+    console.log("📱 デイリーリマインダー送信");
+    runDailyReminder().catch(e => console.error("デイリーリマインダーエラー:", e.message));
   }
 
   // 15分ごと（00/15/30/45分）にFXシグナルチェック
