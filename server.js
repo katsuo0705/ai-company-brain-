@@ -325,7 +325,7 @@ setInterval(() => {
   }
 
   // 毎朝8:00にデイリーリマインダーをLINEに送信（新形式：日替わり名言・平日/土日切替）
-  if (jstHour === 8 && jstMin === 0 && lastReminderDay !== now.getUTCDate()) {
+if (jstHour === 7 && jstMin === 50 && lastReminderDay !== now.getUTCDate()) {
     lastReminderDay = now.getUTCDate();
     console.log("📱 デイリーリマインダー送信");
     runDailyReminder().catch((e) => console.error("デイリーリマインダーエラー:", e.message));
