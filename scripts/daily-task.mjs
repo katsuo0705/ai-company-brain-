@@ -82,36 +82,48 @@ export function buildDailyTaskMessage() {
   return msg;
 }
 
-// 今週のタスク
+// 今週のタスク（逆算式）
 export function buildWeeklyMessage() {
   const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const month = jstNow.getUTCMonth() + 1;
   const day = jstNow.getUTCDate();
-  const dow = jstNow.getUTCDay();
+  const dow = jstNow.getUTCDay(); // 0=日
 
-  // 今週の残り日数（日曜=0を週末として計算）
-  const daysLeftInWeek = dow === 0 ? 0 : 7 - dow;
-  const weekendDays = Math.floor(daysLeftInWeek / 7 * 2); // 土日
-  const weekdayDaysLeft = daysLeftInWeek - weekendDays;
+  // 今週の残り日数（今日含む・日曜は0）
+  const daysLeftInWeek = dow === 0 ? 1 : 8 - dow;
+  const weekdayDaysLeft = Math.max(0, daysLeftInWeek - (dow === 6 ? 1 : dow === 0 ? 0 : 0));
 
+  // 残り投稿数（週21本から済んだ分を引く想定・今は残り日数×3で逆算）
+  const postsLeft = daysLeftInWeek * 3;
+  const outboundLeft = daysLeftInWeek;
+
+  // 今週のフォロワー・OC・FX目標（週ペースから逆算）
   const remainFollowers = GOALS.monthly.followers.target - GOALS.monthly.followers.current;
   const remainOC = GOALS.monthly.oc.target - GOALS.monthly.oc.current;
   const remainFX = GOALS.monthly.fxTrades.target - GOALS.monthly.fxTrades.current;
 
-  let msg = `📆 今週のタスク（${month}/${day}〜）\n\n`;
+  // 月末まで何週あるか（残り日数÷7）
+  const remainingDays = GOALS.monthly.monthEnd - day;
+  const weeksLeft = Math.max(1, Math.ceil(remainingDays / 7));
+  const weekFollowers = Math.ceil(remainFollowers / weeksLeft);
+  const weekOC = Math.ceil(remainOC / weeksLeft);
+  const weekFX = Math.ceil(remainFX / weeksLeft);
+
+  let msg = `📆 今週のタスク（${month}/${day}〜・残り${daysLeftInWeek}日）\n\n`;
   msg += `【SNS】\n`;
-  msg += `★★★ 毎日3投稿（週21本）\n`;
-  msg += `★★☆ アウトバウンド（リプ5・いいね20）× ${daysLeftInWeek}日\n`;
-  msg += `★★☆ 来週投稿文ストック21本（日曜）\n`;
-  msg += `★☆☆ 週次振り返り・来週設計（日曜）\n`;
-  msg += `★☆☆ オプチャ振り返り投稿（日曜）\n\n`;
-  msg += `【FX】\n`;
-  msg += `★★★ 毎日チャート環境認識更新\n`;
-  msg += `★★☆ ルール通りエントリー ${GOALS.weekly.fxTrades}〜3件目標\n\n`;
-  msg += `【今週のペース目標】\n`;
-  msg += `フォロワー：週+${GOALS.weekly.followers}人（今月残り${remainFollowers}人）\n`;
-  msg += `OC：週+${GOALS.weekly.oc}人（今月残り${remainOC}人）\n`;
-  msg += `FX：週+${GOALS.weekly.fxTrades}〜3件（今月残り${remainFX}件）`;
+  msg += `★★★ 投稿：残り${postsLeft}本（${daysLeftInWeek}日×3本）\n`;
+  msg += `★★☆ アウトバウンド：残り${outboundLeft}日分\n`;
+  if (dow <= 6) {
+    msg += `★★☆ 来週ストック21本作成（日曜）\n`;
+    msg += `★☆☆ 週次振り返り・来週設計（日曜）\n`;
+  }
+  msg += `\n【FX】\n`;
+  msg += `★★★ チャート環境認識：毎日更新\n`;
+  msg += `★★☆ ルール通りエントリー：今週${weekFX}件目標\n\n`;
+  msg += `【今週の逆算ペース】\n`;
+  msg += `フォロワー：今週+${weekFollowers}人で月末達成ペース\n`;
+  msg += `OC：今週+${weekOC}人で月末達成ペース\n`;
+  msg += `FX：今週+${weekFX}件で月末達成ペース`;
   return msg;
 }
 
