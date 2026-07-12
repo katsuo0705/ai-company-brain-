@@ -110,10 +110,15 @@ export async function main() {
   msg += `  ・ルール通り率：90%以上（最優先）\n`;
   msg += `  ・トレード記録を毎件つける\n\n`;
 
-  if (isWeekend) {
+  if (dow === 6) {
     msg += `【今日やること】\n`;
     msg += `📊 今週のトレードを振り返りメモに記録\n`;
-    msg += `  → 翌週の環境認識、シナリオ作成\n`;
+    msg += `📉 勝ち負けトレードの原因分析\n`;
+    msg += `📋 ルール通り率を集計・記録\n`;
+    msg += `📑 週次レポート確認（リョウの分析）\n`;
+  } else if (dow === 0) {
+    msg += `【今日やること】\n`;
+    msg += `🗺 翌週の環境認識・シグナルシナリオ作成\n`;
   } else {
     const fxPart = fxStart > 0 ? snsLines.slice(fxStart).join("\n") : "";
     if (fxPart.trim()) msg += fxPart.trim() + "\n";
