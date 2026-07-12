@@ -15,13 +15,11 @@ dotenv.config({ path: join(__dirname, "../.env") });
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const OWNER_ID = process.env.LINE_OWNER_USER_ID;
 
-// ── 目標値（「フォロワー更新して」と言われたらここを更新） ──
 const GOAL = {
   followers: { current: 1012, target: 1150 },
-  monthEnd: 31, // 7月は31日
+  monthEnd: 31,
 };
 
-// ── 日替わり名言（30種・日付でローテーション） ──
 const QUOTES = [
   "続けた人だけが見える景色がある",
   "小さな積み上げが、やがて大きな差になる",
@@ -79,32 +77,54 @@ export async function main() {
   const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const month = jstNow.getUTCMonth() + 1;
   const day = jstNow.getUTCDate();
-  const dow = jstNow.getUTCDay(); // 0=日, 6=土
+  const dow = jstNow.getUTCDay();
   const isWeekend = dow === 0 || dow === 6;
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
-
-  // 残り日数・残りフォロワー
   const remainingDays = GOAL.monthEnd - day;
-  const remainingFollowers = GOAL.followers.target - GOAL.followers.current;
-
-  // 日替わり名言（日付でローテーション）
   const quote = QUOTES[day % QUOTES.length];
 
-  // ロードマップ逆算タスクを取得
   const taskMsg = buildDailyTaskMessage();
-
-  // リマインダー形式に整形（ヘッダーを朝の挨拶に差し替え）
-  const taskBody = taskMsg.split("\n").slice(2).join("\n"); // 1行目の日付見出しを除く
+  const taskBody = taskMsg.split("\n").slice(2).join("\n");
 
   let msg = `📱 ${month}/${day}(${dayNames[dow]}) おはようございます☀️\n\n`;
-  msg += taskBody;
-  msg += `\n\n「${quote}」\n`;
+
+  msg += `【 SNS 】\n`;
+  msg += `🎯 ゴール（12月末）\n`;
+  msg += `  → 0→1達成（JVコンテンツ初販売）\n\n`;
+  msg += `📅 今月の目標（7月末）\n`;
+  msg += `  ・Xフォロワー：1,150人\n`;
+  msg += `  ・オープンチャット：55人\n`;
+  msg += `  ・週次制作フロー定着\n\n`;
+
+  const snsLines = taskBody.split("\n");
+  const fxStart = snsLines.findIndex(l => l.includes("FX"));
+  const snsPart = fxStart > 0 ? snsLines.slice(0, fxStart).join("\n") : taskBody;
+  msg += snsPart.trim() + "\n";
+
+  msg += `\n━━━━━━━━━━\n\n`;
+  msg += `【 FX 】\n`;
+  msg += `🎯 ゴール（12月末）\n`;
+  msg += `  → フィントケイ クオーツ合格\n\n`;
+  msg += `📅 今月の目標（7月末）\n`;
+  msg += `  ・月間トレード数：10件（週2〜3件）\n`;
+  msg += `  ・ルール通り率：90%以上（最優先）\n`;
+  msg += `  ・トレード記録を毎件つける\n\n`;
+
+  if (isWeekend) {
+    msg += `【今日やること】\n`;
+    msg += `📊 今週のトレードを振り返りメモに記録\n`;
+    msg += `  → 翌週の環境認識、シナリオ作成\n`;
+  } else {
+    const fxPart = fxStart > 0 ? snsLines.slice(fxStart).join("\n") : "";
+    if (fxPart.trim()) msg += fxPart.trim() + "\n";
+  }
+
+  msg += `\n「${quote}」\n`;
   msg += `━━━━━━━━━━\n`;
   msg += `今月残り${remainingDays}日🎯`;
 
   await sendLine(msg);
 }
 
-// 直接実行時のみ
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) main().catch(console.error);
