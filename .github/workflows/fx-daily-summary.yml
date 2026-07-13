@@ -21,4 +21,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           TRADE_SHEET_ID: ${{ secrets.TRADE_SHEET_ID }}
+          MYFXBOOK_EMAIL: ${{ secrets.MYFXBOOK_EMAIL }}
+          MYFXBOOK_PASSWORD: ${{ secrets.MYFXBOOK_PASSWORD }}
+          MYFXBOOK_ACCOUNT_ID: ${{ secrets.MYFXBOOK_ACCOUNT_ID }}
         run: node scripts/fx-daily-summary.mjs
